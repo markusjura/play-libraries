@@ -40,8 +40,8 @@ object S3 {
    */
   def apply(bucketName: String, delimiter: String)(implicit credentials: AwsCredentials): Bucket = Bucket(bucketName, Some(delimiter))
 
-  private def httpUrl(bucketName: String, path: String) =
-    "http://" + bucketName + ".s3.amazonaws.com/" + path
+  private def httpsUrl(bucketName: String, path: String) =
+    "https://" + bucketName + ".s3.amazonaws.com/" + path
 
   /**
    * Lowlevel method to call put on a bucket in order to store a file
@@ -60,7 +60,7 @@ object S3 {
 
     Aws
       .withSigner(S3Signer(credentials))
-      .url(httpUrl(bucketName, bucketFile.name))
+      .url(httpsUrl(bucketName, bucketFile.name))
       .withHeaders("X-Amz-acl" -> acl.value :: headers: _*)
       .put(bucketFile.content)
   }
@@ -80,7 +80,7 @@ object S3 {
   def get(bucketName: String, path: Option[String], prefix: Option[String], delimiter: Option[String])(implicit credentials: AwsCredentials): Promise[Response] =
     Aws
       .withSigner(S3Signer(credentials))
-      .url(httpUrl(bucketName, path.getOrElse("")))
+      .url(httpsUrl(bucketName, path.getOrElse("")))
       .withQueryString(
         (prefix.map("prefix" -> _).toList :::
           delimiter.map("delimiter" -> _).toList): _*)
@@ -97,7 +97,7 @@ object S3 {
   def delete(bucketName: String, path: String)(implicit credentials: AwsCredentials): Promise[Response] =
     Aws
       .withSigner(S3Signer(credentials))
-      .url(httpUrl(bucketName, path))
+      .url(httpsUrl(bucketName, path))
       .delete
 
   /**
@@ -116,7 +116,7 @@ object S3 {
     val s3Signer = S3Signer(credentials)
     val signature = s3Signer.createSignature(cannonicalRequest)
 
-    httpUrl(bucketName, path) +
+    httpsUrl(bucketName, path) +
       "?AWSAccessKeyId=" + credentials.accessKeyId +
       "&Signature=" + s3Signer.urlEncode(signature) +
       "&Expires=" + expireString
@@ -139,7 +139,7 @@ object S3 {
 
     Aws
       .withSigner(S3Signer(credentials))
-      .url(httpUrl(destinationBucketName, destinationPath))
+      .url(httpsUrl(destinationBucketName, destinationPath))
       .withHeaders("X-Amz-acl" -> acl.value)
       .withHeaders("X-Amz-copy-source" -> source)
       .put
