@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ivy-module version="2.0" xmlns:e="http://ant.apache.org/ivy/extra">
-	<info organisation="nl.rhinofly" module="api-s3_2.9.1" revision="1.6.1" status="release" publication="20130126111628">
+	<info organisation="nl.rhinofly" module="api-s3_2.9.1" revision="1.6.1" status="release" publication="20130126121719">
 		<description>
 		api-s3
 		</description>
