@@ -7,7 +7,7 @@ import play.api.libs.concurrent.Promise
 import play.api.libs.ws.WS
 import play.api.libs.ws.Response
 import org.apache.commons.codec.binary.Base64
-import org.apache.commons.lang.StringUtils
+import org.apache.commons.lang3.StringUtils
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import java.text.SimpleDateFormat

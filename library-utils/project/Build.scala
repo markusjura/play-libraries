@@ -10,14 +10,8 @@ object ApplicationBuild extends Build {
   val appDependencies = Seq( // Add your project dependencies here,
   )
 
-  def rhinoflyRepo(version: String) = {
-    val repo = if (version endsWith "SNAPSHOT") "snapshot" else "release"
-    Some("Rhinofly Internal " + repo.capitalize + " Repository" at "http://maven-repository.rhinofly.net:8081/artifactory/libs-" + repo + "-local")
-  }
-
   val main = PlayProject(appName, appVersion, appDependencies).settings(
-    organization := "nl.rhinofly",
-    publishTo <<= version(rhinoflyRepo),
-    credentials += Credentials(Path.userHome / ".ivy2" / ".credentials"))
+  organization := "com.mj",
+  resolvers += Resolver.url("Markus Jura Play Libraries GitHub Repository", url("http://markusjura.github.com/play-libraries"))(Resolver.ivyStylePatterns))
 
 }
