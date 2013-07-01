@@ -1,19 +1,23 @@
 import sbt._
 import Keys._
-import PlayProject._
 
 object ApplicationBuild extends Build {
 
     val appName         = "api-aws-utils"
-    val appVersion      = "1.3.1"
+    val appVersion      = "1.4.0"
 
     val appDependencies = Seq(
-      "com.mj" %% "library-utils" % "1.0.1"
+      "nl.rhinofly" %% "library-utils" % "1.2.0"
     )
-    
-  val main = PlayProject(appName, appVersion, appDependencies, mainLang = SCALA).settings(
-    organization := "com.mj",
-    resolvers += Resolver.url("Markus Jura Play Libraries GitHub Repository", url("http://markusjura.github.com/play-libraries"))(Resolver.ivyStylePatterns))
+
+  val main = play.Project(appName, appVersion, appDependencies).settings(
+    organization := "nl.rhinofly",
+    publishTo <<= version(rhinoflyRepo),
+    resolvers += rhinoflyRepo("RELEASE").get,
+    credentials += Credentials(Path.userHome / ".ivy2" / ".credentials"),
+	  scalacOpts)
+
+  lazy val scalacOpts = scalacOptions ++= Seq("-encoding", "UTF-8", "-unchecked", "-deprecation", "-feature")
 
 
 }

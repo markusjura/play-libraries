@@ -54,10 +54,19 @@ case class S3Signer(credentials: AwsCredentials) extends Signer with SignerUtils
       case x => throw new Exception("Could not extract the bucket name from " + x)
     }
 
-    val resourcePath = "/" + bucketName + path.getOrElse("")
+    val query = request.queryString.map {
+      case emptySeq @ (key, value) if(value.isEmpty || value(0).isEmpty) => key
+      case other @ (key, value) => key + "=" + value.head
+    }.mkString("&")
+
+    val urlQuery = query match {
+      case "" => query // if the query is empty, return that
+      case _ => "?" + query // if there are parameters add the ?
+    }
+
+    val resourcePath = "/" + bucketName + path.getOrElse("") + urlQuery
 
     val cannonicalRequest = createCannonicalRequest(method, contentMd5, contentType, dateTime, newHeaders, resourcePath)
-
     val authorizationHeader = "AWS " + accessKeyId + ":" + createSignature(cannonicalRequest)
 
     newHeaders += "Authorization" -> Seq(authorizationHeader)

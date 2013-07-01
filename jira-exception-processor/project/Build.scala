@@ -4,23 +4,21 @@ import PlayProject._
 
 object ApplicationBuild extends Build {
 
-  val appName = "api-s3"
-  val appVersion = "1.7.2"
+  val appName = "jira-exception-processor"
+  val appVersion = "2.0.1"
 
   val appDependencies = Seq(
-    "nl.rhinofly" %% "api-aws-utils" % "1.4.0")
+    "nl.rhinofly" %% "api-ses" % "1.0.1")
 
   def rhinoflyRepo(version: String) = {
     val repo = if (version endsWith "SNAPSHOT") "snapshot" else "release"
     Some("Rhinofly Internal " + repo.capitalize + " Repository" at "http://maven-repository.rhinofly.net:8081/artifactory/libs-" + repo + "-local")
   }
 
-  val main = play.Project(appName, appVersion, appDependencies ).settings(
+  val main = PlayProject(appName, appVersion, appDependencies).settings(
     organization := "nl.rhinofly",
-    resolvers += rhinoflyRepo("RELEASE").get,
     publishTo <<= version(rhinoflyRepo),
-    credentials += Credentials(Path.userHome / ".ivy2" / ".credentials"),
-	scalacOpts)
+    resolvers += rhinoflyRepo("RELEASE").get,
+    credentials += Credentials(Path.userHome / ".ivy2" / ".credentials"))
 
-  lazy val scalacOpts = scalacOptions ++= Seq("-encoding", "UTF-8", "-unchecked", "-deprecation", "-feature")
 }

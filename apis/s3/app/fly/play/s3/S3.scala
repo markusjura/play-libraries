@@ -3,11 +3,9 @@ package fly.play.s3
 import play.api.Play.current
 import play.api.PlayException
 import play.api.libs.concurrent.Akka
-import play.api.libs.concurrent.Promise
 import play.api.libs.ws.WS
 import play.api.libs.ws.Response
 import org.apache.commons.codec.binary.Base64
-import org.apache.commons.lang3.StringUtils
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import java.text.SimpleDateFormat
@@ -21,6 +19,8 @@ import fly.play.aws.xml.AwsResponse
 import fly.play.aws.xml.AwsError
 import play.api.http.ContentTypeOf
 import scala.collection.JavaConversions
+import concurrent.{ExecutionContext, Future}
+import play.libs.F.Promise
 
 /**
  * Amazon Simple Storage Service
@@ -51,7 +51,7 @@ object S3 {
    *
    * @see Bucket.add
    */
-  def put(bucketName: String, bucketFile: BucketFile)(implicit credentials: AwsCredentials): Promise[Response] = {
+  def put(bucketName: String, bucketFile: BucketFile)(implicit credentials: AwsCredentials): Future[Response] = {
     val acl = bucketFile.acl getOrElse PUBLIC_READ
 
     implicit val fileContentType = ContentTypeOf[Array[Byte]](Some(bucketFile.contentType))
@@ -66,27 +66,6 @@ object S3 {
   }
 
   /**
-   * Lowlevel method to call get on a bucket or a specific file
-   *
-   * @param bucketName	The name of the bucket
-   * @param path		The path that you want to call the get on, default is "" (empty string).
-   * 					This is mostly used to retrieve single files
-   * @param prefix		A prefix that is most commonly used to list the contents of a 'directory'
-   * @param delimiter	A delimiter that is used to distinguish 'directories'
-   *
-   * @see Bucket.get
-   * @see Bucket.list
-   */
-  def get(bucketName: String, path: Option[String], prefix: Option[String], delimiter: Option[String])(implicit credentials: AwsCredentials): Promise[Response] =
-    Aws
-      .withSigner(S3Signer(credentials))
-      .url(httpsUrl(bucketName, path.getOrElse("")))
-      .withQueryString(
-        (prefix.map("prefix" -> _).toList :::
-          delimiter.map("delimiter" -> _).toList): _*)
-      .get
-
-  /**
    * Lowlevel method to call delete on a bucket in order to delete a file
    *
    * @param bucketName	The name of the bucket
@@ -94,7 +73,7 @@ object S3 {
    *
    * @see Bucket.remove
    */
-  def delete(bucketName: String, path: String)(implicit credentials: AwsCredentials): Promise[Response] =
+  def delete(bucketName: String, path: String)(implicit credentials: AwsCredentials): Future[Response] =
     Aws
       .withSigner(S3Signer(credentials))
       .url(httpsUrl(bucketName, path))
@@ -134,7 +113,7 @@ object S3 {
    *
    * @see Bucket.rename
    */
-  def putCopy(sourceBucketName: String, sourcePath: String, destinationBucketName: String, destinationPath: String, acl: ACL)(implicit credentials: AwsCredentials): Promise[Response] = {
+  def putCopy(sourceBucketName: String, sourcePath: String, destinationBucketName: String, destinationPath: String, acl: ACL)(implicit credentials: AwsCredentials): Future[Response] = {
     val source = "/" + sourceBucketName + "/" + sourcePath
 
     Aws
@@ -145,6 +124,86 @@ object S3 {
       .put
   }
 
+  /**
+   * Lowlevel method to call get on a bucket or a specific file
+   *
+   * @param bucketName  The name of the bucket
+   * @param path    The path that you want to call the get on, default is "" (empty string).
+   *          This is mostly used to retrieve single files
+   * @param prefix    A prefix that is most commonly used to list the contents of a 'directory'
+   * @param delimiter A delimiter that is used to distinguish 'directories'
+   *
+   * @see Bucket.get
+   * @see Bucket.list
+   */
+  def get(bucketName: String, path: Option[String], prefix: Option[String], delimiter: Option[String])(implicit credentials: AwsCredentials): Future[Response] =
+    Aws
+      .withSigner(S3Signer(credentials))
+      .url(httpUrl(bucketName, path.getOrElse("")))
+      .withQueryString(
+        (prefix.map("prefix" -> _).toList :::
+          delimiter.map("delimiter" -> _).toList): _*)
+      .get
+
+
+  /**
+   * Low level method to initiate the multipart request for a specific file
+   *
+   * @param bucketName The name of the bucket
+   * @param fileName the path of the file being uploaded
+   *
+   * @see Bucket.initiateMultipartUpload
+   */
+  def initiateMultipartUpload(bucketName: String, fileName: String)(implicit credentials: AwsCredentials): Future[Response] = {
+    Aws
+      .withSigner(S3Signer(credentials))
+      .url(httpUrl(bucketName, fileName))
+      .withQueryString("uploads" -> "")
+      .post("")
+  }
+
+  /**
+   * Low level method to upload a multipart request
+   *
+   * @param bucketName The name of the bucket
+   * @param fileName path of the file being uploaded (to)
+   * @param uploadId ID for the upload session (got from initiateMultipartUpload)
+   * @param partNumber the number of the part being uploaded
+   * @param content The bytes for the content being uploaded
+   *
+   * @see  Bucket.uploadPart
+   */
+  def uploadPart(bucketName: String, fileName: String, uploadId: String, partNumber: Int, content: Array[Byte])(implicit credentials: AwsCredentials): Future[Response] = {
+    Aws
+      .withSigner(S3Signer(credentials))
+      .url(httpUrl(bucketName, fileName))
+      .withQueryString(
+        ("partNumber" -> partNumber.toString),
+        ("uploadId" -> uploadId)
+      )
+      .put(content)
+  }
+
+  /**
+   * Low level method to complete a multipart request
+   *
+   * @param bucketName The name of the bucket
+   * @param fileName path of the file being uploaded
+   * @param uploadId ID for the upload session (got from initiateMultipartUpload)
+   * @param parts XML for all the part numbers and their Etags, for more info check out
+   *              http://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadComplete.html
+   *
+   * @see Bucket.completeMultipartUpload
+   */
+  def completeMultipartUpload(bucketName: String, fileName: String, uploadId: String, parts: List[MultipartItem])(implicit credentials: AwsCredentials): Future[Response] = {
+    val body = <CompleteMultipartUpload>{ parts.map(part => part.toXml) }</CompleteMultipartUpload>
+    Aws
+      .withSigner(S3Signer(credentials))
+      .url(httpUrl(bucketName, fileName))
+      .withQueryString(("uploadId" -> uploadId))
+      .post(body)
+  }
+
 }
 
 case class Success()
@@ -152,13 +211,62 @@ case class Success()
 /**
  * Representation of a bucket
  *
- * @param bucketName	The name of the bucket needed to create a Bucket representation
+ * @param name	The name of the bucket needed to create a Bucket representation
  * @param delimiter		A delimiter to use for this Bucket instance, default is a / (slash)
  *
  */
 case class Bucket(
   name: String,
   delimiter: Option[String] = Some("/"))(implicit val credentials: AwsCredentials) {
+
+  /**
+   * Initiates the multipart request, where it gets the uploadId before the parts
+   * can be uploaded
+   *
+   * @param fileName The path of the file to be uploaded
+   */
+  def initiateMultipartUpload(fileName: String): Future[Either[AwsError, String]] = {
+    import play.api.libs.concurrent.Execution.Implicits._
+    S3.initiateMultipartUpload(name, fileName) map AwsResponse { (status, response) =>
+      val xml = response.xml
+      (xml \ "UploadId").text // extract the UploadId value from the XMLK
+    }
+  }
+
+  /**
+   * Uploads a part of the previously initiated multipart upload
+   *
+   * @param partNumber Number of the part being uploaded (can be between 1, 10000)
+   * @param uploadId ID received from the initiate multipart upload call
+   * @param content part being uploaded, must be atleast 5MB (5242880 bytes)
+   *
+   * @see initiateMultipartUpload
+   */
+  def uploadPart(fileName: String, partNumber: Int, uploadId: String, content: Array[Byte]): Future[Either[AwsError, MultipartItem]] = {
+    import play.api.libs.concurrent.Execution.Implicits._ // need to import this otherwise compile error, not sure why yet.
+    S3.uploadPart(name, fileName, uploadId, partNumber, content) map AwsResponse { (status, response) =>
+      val headers = extractHeaders(response)
+      MultipartItem(partNumber, headers.get("ETag").get)
+    }
+  }
+
+  /**
+   * Finalizes the uploading for the multipart request
+   * (after the parts have been uploaded) and returns the URL
+   *
+   * @param uploadId ID received from the initiate multipart upload call
+   * @param parts List of the parts which have been uploaded, used the make the body for
+   *              the request
+   *
+   * @see initiateMultipartUpload, uploadPart
+   */
+  def completeMultipartUpload(fileName: String, uploadId: String, parts: List[MultipartItem]): Future[Either[AwsError, String]] = {
+    import play.api.libs.concurrent.Execution.Implicits._ // need to import this otherwise compile error, not sure why yet.
+    S3.completeMultipartUpload(name, fileName, uploadId, parts) map AwsResponse { (status, response) =>
+      val xml = response.xml
+      (xml \ "Location").text // extract the Location value from the XML
+    }
+  }
 
   /**
    * Creates an authenticated url for an item with the given name
@@ -174,59 +282,51 @@ case class Bucket(
    *
    * @param itemName	The name of the item you want to retrieve
    */
-  def get(itemName: String): Promise[Either[AwsError, BucketFile]] =
+  def get(itemName: String)(implicit executionContext:ExecutionContext): Future[Either[AwsError, BucketFile]] =
     S3.get(name, Some(itemName), None, None) map AwsResponse { (status, response) =>
-      //implicits
-      import JavaConversions.mapAsScalaMap
-      import JavaConversions.asScalaBuffer
+      val headers = extractHeaders(response)
 
-      val headers =
-        for {
-          (key, value) <- response.ahcResponse.getHeaders.toMap
-          if (value.size > 0)
-        } yield key -> value.head
-
-      BucketFile(itemName, 
-          headers("Content-Type"), 
-          response.ahcResponse.getResponseBodyAsBytes, 
-          None, 
+      BucketFile(itemName,
+          headers("Content-Type"),
+          response.ahcResponse.getResponseBodyAsBytes,
+          None,
           Some(headers))
     }
 
   /**
    * Lists the contents of the bucket
    */
-  def list: Promise[Either[AwsError, Iterable[BucketItem]]] =
+  def list(implicit executionContext:ExecutionContext): Future[Either[AwsError, Iterable[BucketItem]]] =
     S3.get(name, None, None, delimiter) map listResponse
 
   /**
    * Lists the contents of a 'directory' in the bucket
    */
-  def list(prefix: String): Promise[Either[AwsError, Iterable[BucketItem]]] =
+  def list(prefix: String)(implicit executionContext:ExecutionContext): Future[Either[AwsError, Iterable[BucketItem]]] =
     S3.get(name, None, Some(prefix), delimiter) map listResponse
 
   /**
    * @see add
    */
-  def + = add _
+  def +(bucketFile: BucketFile)(implicit executionContext:ExecutionContext) = add(bucketFile)
   /**
    * Adds a file to this bucket
    *
    * @param bucketFile	A representation of the file
    */
-  def add(bucketFile: BucketFile): Promise[Either[AwsError, Success]] =
+  def add(bucketFile: BucketFile)(implicit executionContext:ExecutionContext): Future[Either[AwsError, Success]] =
     S3.put(name, bucketFile) map successResponse
 
   /**
    * @see remove
    */
-  def - = remove _
+  def -(itemName: String)(implicit executionContext:ExecutionContext)= remove(itemName)
   /**
    * Removes a file from this bucket
    *
    * @param itemName	The name of the file that needs to be removed
    */
-  def remove(itemName: String): Promise[Either[AwsError, Success]] =
+  def remove(itemName: String)(implicit executionContext:ExecutionContext): Future[Either[AwsError, Success]] =
     S3.delete(name, itemName) map successResponse
 
   /**
@@ -246,10 +346,10 @@ case class Bucket(
    * @param destinationItemName		The new name of the item
    * @param acl						The ACL for the new item, default is PUBLIC_READ
    */
-  def rename(sourceItemName: String, destinationItemName: String, acl: ACL = PUBLIC_READ): Promise[Either[AwsError, Success]] =
+  def rename(sourceItemName: String, destinationItemName: String, acl: ACL = PUBLIC_READ)(implicit executionContext:ExecutionContext): Future[Either[AwsError, Success]] =
     (S3.putCopy(name, sourceItemName, name, destinationItemName, acl) map successResponse).flatMap { response =>
       response.fold(
-        error => Promise.pure(response),
+        error => Future.successful(response),
         success => remove(sourceItemName))
     }
 
@@ -259,15 +359,35 @@ case class Bucket(
 
       /* files */ (xml \ "Contents").map(n => BucketItem(n \ "Key" text, false)) ++
         /* folders */ (xml \ "CommonPrefixes").map(n => BucketItem(n \ "Prefix" text, true))
-    } _
+    }_
 
-  private def successResponse = AwsResponse { (status, response) => Success() } _
+  private def successResponse = AwsResponse { (status, response) => Success() }_
+
+  private def extractHeaders(response: Response): Map[String, String]= {
+    //implicits
+    import JavaConversions.mapAsScalaMap
+    import JavaConversions.asScalaBuffer
+
+    for {
+      (key, value) <- response.ahcResponse.getHeaders.toMap
+      if (value.size > 0)
+    } yield key -> value.head
+  }
 }
 
 /**
  * Representation of an element in a bucket as the result of a call to the list method
  */
 case class BucketItem(name: String, isVirtual: Boolean)
+
+/**
+ * Representation of a part which has already been uploaded. Used to collect all the parts
+ * in the end (for the complete call.
+ */
+case class MultipartItem(partNumber: Int, eTag: String) {
+  def toXml = <Part><PartNumber>{partNumber}</PartNumber><ETag>{eTag}</ETag></Part>
+}
+
 /**
  * Representation of a file, used in get and add methods of the bucket
  */
