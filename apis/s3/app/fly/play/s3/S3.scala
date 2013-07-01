@@ -139,7 +139,7 @@ object S3 {
   def get(bucketName: String, path: Option[String], prefix: Option[String], delimiter: Option[String])(implicit credentials: AwsCredentials): Future[Response] =
     Aws
       .withSigner(S3Signer(credentials))
-      .url(httpUrl(bucketName, path.getOrElse("")))
+      .url(httpsUrl(bucketName, path.getOrElse("")))
       .withQueryString(
         (prefix.map("prefix" -> _).toList :::
           delimiter.map("delimiter" -> _).toList): _*)
@@ -157,7 +157,7 @@ object S3 {
   def initiateMultipartUpload(bucketName: String, fileName: String)(implicit credentials: AwsCredentials): Future[Response] = {
     Aws
       .withSigner(S3Signer(credentials))
-      .url(httpUrl(bucketName, fileName))
+      .url(httpsUrl(bucketName, fileName))
       .withQueryString("uploads" -> "")
       .post("")
   }
@@ -176,7 +176,7 @@ object S3 {
   def uploadPart(bucketName: String, fileName: String, uploadId: String, partNumber: Int, content: Array[Byte])(implicit credentials: AwsCredentials): Future[Response] = {
     Aws
       .withSigner(S3Signer(credentials))
-      .url(httpUrl(bucketName, fileName))
+      .url(httpsUrl(bucketName, fileName))
       .withQueryString(
         ("partNumber" -> partNumber.toString),
         ("uploadId" -> uploadId)
@@ -199,7 +199,7 @@ object S3 {
     val body = <CompleteMultipartUpload>{ parts.map(part => part.toXml) }</CompleteMultipartUpload>
     Aws
       .withSigner(S3Signer(credentials))
-      .url(httpUrl(bucketName, fileName))
+      .url(httpsUrl(bucketName, fileName))
       .withQueryString(("uploadId" -> uploadId))
       .post(body)
   }
