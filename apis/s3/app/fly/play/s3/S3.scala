@@ -21,6 +21,7 @@ import play.api.http.ContentTypeOf
 import scala.collection.JavaConversions
 import concurrent.{ExecutionContext, Future}
 import play.libs.F.Promise
+import scala.language.postfixOps
 
 /**
  * Amazon Simple Storage Service
@@ -42,6 +43,9 @@ object S3 {
 
   private def httpsUrl(bucketName: String, path: String) =
     "https://" + bucketName + ".s3.amazonaws.com/" + path
+
+  private def httpsUrl(bucketName: String) =
+    "https://" + bucketName + ".s3.amazonaws.com/"
 
   /**
    * Lowlevel method to call put on a bucket in order to store a file
@@ -78,6 +82,27 @@ object S3 {
       .withSigner(S3Signer(credentials))
       .url(httpsUrl(bucketName, path))
       .delete
+
+  /**
+   * Lowlevel method to call delete multiple objects in one request on a bucket in order to delete a file
+   *
+   * @param bucketName  The name of the bucket
+   * @param paths       A list of file paths you want to delete
+   *
+   * @see Bucket.remove
+   */
+  def deleteMultipleObjects(bucketName: String, paths: List[String])(implicit credentials: AwsCredentials): Future[Response] = {
+    // construct body content
+    val body = "<Delete>" + paths.map(p => "<Object><Key>" + p + "</Key></Object>").mkString + "</Delete>"
+    play.api.Logger.debug("body: " + body)
+
+    Aws
+      .withSigner(S3Signer(credentials))
+      .url(httpsUrl(bucketName))
+      .withQueryString(("delete" -> ""))
+      .post(body)
+  }
+
 
   /**
    * Lowlevel method to create an authenticated url to a specific file
@@ -328,6 +353,9 @@ case class Bucket(
    */
   def remove(itemName: String)(implicit executionContext:ExecutionContext): Future[Either[AwsError, Success]] =
     S3.delete(name, itemName) map successResponse
+
+  def remove(itemNames: List[String])(implicit executionContext:ExecutionContext): Future[Either[AwsError, Success]] =
+    S3.deleteMultipleObjects(name, itemNames) map successResponse
 
   /**
    * Creates a new instance of the Bucket with another delimiter
