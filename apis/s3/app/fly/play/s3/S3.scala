@@ -22,6 +22,7 @@ import scala.collection.JavaConversions
 import concurrent.{ExecutionContext, Future}
 import play.libs.F.Promise
 import scala.language.postfixOps
+import scala.xml.XML
 
 /**
  * Amazon Simple Storage Service
@@ -93,8 +94,7 @@ object S3 {
    */
   def deleteMultipleObjects(bucketName: String, paths: List[String])(implicit credentials: AwsCredentials): Future[Response] = {
     // construct body content
-    val body = "<Delete>" + paths.map(p => "<Object><Key>" + p + "</Key></Object>").mkString + "</Delete>"
-    play.api.Logger.debug("body: " + body)
+    val body = XML.loadString("<Delete>" + paths.map(p => "<Object><Key>" + p + "</Key></Object>").mkString + "</Delete>")
 
     Aws
       .withSigner(S3Signer(credentials))

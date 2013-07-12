@@ -64,7 +64,7 @@ case class S3Signer(credentials: AwsCredentials) extends Signer with SignerUtils
      * Will be improved when we get some time to spare.
      */
     val urlQuery = query match {
-      case notMultipart if(!query.startsWith("uploadId") && !query.startsWith("partNumber") && !query.startsWith("upload")) =>
+      case notMultipart if(!query.startsWith("uploadId") && !query.startsWith("partNumber") && !query.startsWith("upload") && !query.startsWith("delete")) =>
         ""
       case "" => "" // if the query is empty, return that
       case _ => "?" + query // if there are parameters add the ?
