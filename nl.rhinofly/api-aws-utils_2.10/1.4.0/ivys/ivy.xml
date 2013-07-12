@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ivy-module version="2.0" xmlns:e="http://ant.apache.org/ivy/extra">
-	<info organisation="nl.rhinofly" module="api-aws-utils_2.10" revision="1.4.0" status="release" publication="20130711121415">
+	<info organisation="nl.rhinofly" module="api-aws-utils_2.10" revision="1.4.0" status="release" publication="20130711182855">
 		<description>
 		api-aws-utils
 		</description>
