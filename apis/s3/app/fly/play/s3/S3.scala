@@ -220,7 +220,7 @@ object S3 {
    *
    * @see Bucket.completeMultipartUpload
    */
-  def completeMultipartUpload(bucketName: String, fileName: String, uploadId: String, parts: List[MultipartItem])(implicit credentials: AwsCredentials): Future[Response] = {
+  def completeMultipartUpload(bucketName: String, fileName: String, uploadId: String, parts: Seq[MultipartItem])(implicit credentials: AwsCredentials): Future[Response] = {
     val body = <CompleteMultipartUpload>{ parts.map(part => part.toXml) }</CompleteMultipartUpload>
     Aws
       .withSigner(S3Signer(credentials))
@@ -285,7 +285,7 @@ case class Bucket(
    *
    * @see initiateMultipartUpload, uploadPart
    */
-  def completeMultipartUpload(fileName: String, uploadId: String, parts: List[MultipartItem]): Future[Either[AwsError, String]] = {
+  def completeMultipartUpload(fileName: String, uploadId: String, parts: Seq[MultipartItem]): Future[Either[AwsError, String]] = {
     import play.api.libs.concurrent.Execution.Implicits._ // need to import this otherwise compile error, not sure why yet.
     S3.completeMultipartUpload(name, fileName, uploadId, parts) map AwsResponse { (status, response) =>
       val xml = response.xml
