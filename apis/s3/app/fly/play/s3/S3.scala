@@ -92,7 +92,7 @@ object S3 {
    *
    * @see Bucket.remove
    */
-  def deleteMultipleObjects(bucketName: String, paths: List[String])(implicit credentials: AwsCredentials): Future[Response] = {
+  def deleteMultipleObjects(bucketName: String, paths: Seq[String])(implicit credentials: AwsCredentials): Future[Response] = {
     // construct body content
     val body = XML.loadString("<Delete>" + paths.map(p => "<Object><Key>" + p + "</Key></Object>").mkString + "</Delete>")
 
@@ -354,7 +354,7 @@ case class Bucket(
   def remove(itemName: String)(implicit executionContext:ExecutionContext): Future[Either[AwsError, Success]] =
     S3.delete(name, itemName) map successResponse
 
-  def remove(itemNames: List[String])(implicit executionContext:ExecutionContext): Future[Either[AwsError, Success]] =
+  def remove(itemNames: Seq[String])(implicit executionContext:ExecutionContext): Future[Either[AwsError, Success]] =
     S3.deleteMultipleObjects(name, itemNames) map successResponse
 
   /**
